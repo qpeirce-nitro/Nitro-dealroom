@@ -2,7 +2,26 @@
 // GET  /api/room?r=<roomId>              -> { config, tasks }
 // POST /api/room?r=<roomId> { op, ... }  -> add | update | delete a plan step, or log a CTA click
 import { getStore } from '@netlify/blobs';
-import { STATUSES, OWNERS } from '../lib/template.mjs';
+import { STATUSES, OWNERS, isFileId, readUpload, newFileId } from '../lib/template.mjs';
+
+const MAX_UPLOADS = 30;
+const INLINE = ['application/pdf', 'image/png', 'image/jpeg', 'text/plain'];
+
+async function serveFile(store, base, config, fid) {
+  if (!isFileId(fid)) return json({ error: 'not found' }, 404);
+  const linked = (config.docs || []).some((d) => d.file === fid) || !!(await store.get(base + 'upload/' + fid, { type: 'json' }));
+  if (!linked) return json({ error: 'not found' }, 404);
+  const [meta, data] = await Promise.all([store.get('filemeta/' + fid, { type: 'json' }), store.get('file/' + fid, { type: 'arrayBuffer' })]);
+  if (!meta || !data) return json({ error: 'not found' }, 404);
+  const safe = meta.name.replace(/[^\w .()-]+/g, '_');
+  return new Response(data, { status: 200, headers: {
+    'content-type': meta.type,
+    'content-disposition': (INLINE.includes(meta.type) ? 'inline' : 'attachment') + '; filename="' + safe + '"; filename*=UTF-8\'\'' + encodeURIComponent(meta.name),
+    'x-content-type-options': 'nosniff',
+    'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+    'cache-control': 'private, max-age=300'
+  } });
+}
 
 const MAX_TASKS = 200;
 const json = (body, status = 200) =>
@@ -26,7 +45,12 @@ export default async (req) => {
   if (!config) return json({ error: 'not found' }, 404);
   const phaseIds = (config.phases || []).map((p) => p.id);
 
-  if (req.method === 'GET') return json({ config, tasks: await listJSON(store, base + 'task/') });
+  if (req.method === 'GET') {
+    const fid = new URL(req.url).searchParams.get('f');
+    if (fid) return serveFile(store, base, config, fid);
+    const [tasks, uploads] = await Promise.all([listJSON(store, base + 'task/'), listJSON(store, base + 'upload/')]);
+    return json({ config, tasks, uploads: uploads.sort((a, b) => b.at - a.at) });
+  }
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
 
   let body;
@@ -67,6 +91,26 @@ export default async (req) => {
     case 'delete': {
       if (!isId(body.id)) return json({ error: 'invalid id' }, 400);
       await store.delete(base + 'task/' + body.id);
+      await touch();
+      return json({ ok: true });
+    }
+    case 'upload': {
+      const f = readUpload(body.name, body.data);
+      if (f.error) return json({ error: f.error }, 400);
+      const { blobs } = await store.list({ prefix: base + 'upload/' });
+      if (blobs.length >= MAX_UPLOADS) return json({ error: 'This deal room has reached its upload limit. Ask your Nitro contact to remove old files.' }, 409);
+      const fid = newFileId();
+      const meta = { fid, name: f.name, type: f.type, size: f.bytes.length, at: now, by, scope: 'customer', rid };
+      await store.set('file/' + fid, f.bytes);
+      await store.setJSON('filemeta/' + fid, meta);
+      await store.setJSON(base + 'upload/' + fid, meta);
+      await touch();
+      return json({ ok: true, upload: meta });
+    }
+    case 'deleteUpload': {
+      if (!isFileId(body.fid)) return json({ error: 'invalid id' }, 400);
+      if (!(await store.get(base + 'upload/' + body.fid, { type: 'json' }))) return json({ error: 'not found' }, 404);
+      await Promise.all([store.delete(base + 'upload/' + body.fid), store.delete('file/' + body.fid), store.delete('filemeta/' + body.fid)]);
       await touch();
       return json({ ok: true });
     }
