@@ -14,6 +14,31 @@ const isDate = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && 
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, n);
 const num = (v, min, max, d) => { const x = Number(v); return Number.isFinite(x) ? Math.min(max, Math.max(min, x)) : d; };
 const url = (s) => { const v = clean(s, 500); return /^https:\/\/[^\s"'<>]+$/i.test(v) ? v : ''; };
+export const isFileId = (s) => typeof s === 'string' && /^f[a-z0-9]{12,24}$/.test(s);
+
+// Files people can upload: extension -> content type served back.
+export const FILE_TYPES = {
+  pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  csv: 'text/csv', txt: 'text/plain', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', zip: 'application/zip'
+};
+export const MAX_FILE_BYTES = 4 * 1024 * 1024;
+
+// Decode and check an uploaded file. Returns { error } or { name, ext, type, bytes }.
+export function readUpload(name, base64) {
+  const n = clean(name, 120).replace(/[\\/:*?"<>|]+/g, '-');
+  const ext = (n.split('.').pop() || '').toLowerCase();
+  if (!n || !FILE_TYPES[ext]) return { error: 'That file type isn’t supported. Use PDF, Word, Excel, PowerPoint, CSV, text, PNG, JPG or ZIP.' };
+  if (typeof base64 !== 'string' || base64.length > Math.ceil(MAX_FILE_BYTES / 3) * 4 + 8) return { error: 'Files can be up to 4 MB.' };
+  const bytes = Buffer.from(base64, 'base64');
+  if (!bytes.length) return { error: 'That file is empty.' };
+  if (bytes.length > MAX_FILE_BYTES) return { error: 'Files can be up to 4 MB.' };
+  return { name: n, ext, type: FILE_TYPES[ext], bytes };
+}
+
+export const newFileId = () => { const a = 'abcdefghijklmnopqrstuvwxyz0123456789'; const b = crypto.getRandomValues(new Uint8Array(18)); return 'f' + [...b].map((x) => a[x % a.length]).join(''); };
+
 const email = (s) => { const v = clean(s, 120); return /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(v) ? v : ''; };
 
 export const DEFAULT_CRITERIA = [
@@ -25,12 +50,15 @@ export const DEFAULT_CRITERIA = [
 ];
 
 export const DEFAULT_DOCS = [
+  { title: 'Nitro Trust Center', desc: 'Security controls, certifications, privacy and data residency', stage: 'Pilot', url: 'https://www.gonitro.com/security-compliance' },
+  { title: 'Compliance certifications by product', desc: 'SOC 2 Type 2, ISO 27001, HIPAA and more, per Nitro product', stage: 'Pilot', url: 'https://www.gonitro.com/security-compliance/compliance' },
+  { title: 'AI at Nitro: privacy and data handling', desc: 'How Nitro’s AI features protect your documents', stage: 'Pilot', url: 'https://www.gonitro.com/security-compliance/artificial-intelligence' },
+  { title: 'Nitro PDF Pro training video', desc: 'A short introduction for pilot users', stage: 'Pilot', url: 'https://www.gonitro.com/tutorial-videos/introduction-to-nitro-pdf-pro' },
   { title: 'Nitro Pilot Overview', desc: 'How the pilot works, step by step', stage: 'Pilot', url: '' },
   { title: 'Pilot Mutual Activity Plan', desc: 'Products tested, timeline, decision criteria, success metrics, technical specs', stage: 'Pilot', url: '' },
   { title: 'Nitro Installation Guide', desc: 'Installers, Team Account setup, activation and self-help resources', stage: 'Pilot', url: '' },
   { title: 'Account Activation Instructions', desc: 'For pilot participants joining the Nitro Team', stage: 'Pilot', url: '' },
   { title: 'Pilot participant email templates', desc: 'Ready-to-send communications to pilot users', stage: 'Pilot', url: '' },
-  { title: 'Security & compliance documentation', desc: 'For your security review', stage: 'Pilot', url: '' },
   { title: 'IT/Technical Validation Survey', desc: 'For your IT team, near the end of the pilot', stage: 'Pilot', url: '' },
   { title: 'Post-pilot user survey', desc: 'For all pilot participants', stage: 'Pilot', url: '' },
   { title: 'Executive Briefing — pilot results', desc: 'Survey results, usage, productivity, sustainability, time and $ saved', stage: 'Decision', url: '' },
@@ -87,8 +115,12 @@ export function sanitizeConfig(c, todayIso) {
     criteria: (Array.isArray(c.criteria) && c.criteria.length ? c.criteria : DEFAULT_CRITERIA).slice(0, 8)
       .map((x) => ({ label: clean(x?.label, 120), target: clean(x?.target, 20) }))
       .filter((x) => x.label),
-    docs: (Array.isArray(c.docs) && c.docs.length ? c.docs : DEFAULT_DOCS).slice(0, 20)
-      .map((x) => ({ title: clean(x?.title, 100), desc: clean(x?.desc, 160), stage: ['Pilot', 'Decision', 'Rollout'].includes(x?.stage) ? x.stage : 'Pilot', url: url(x?.url) }))
+    docs: (Array.isArray(c.docs) && c.docs.length ? c.docs : DEFAULT_DOCS).slice(0, 30)
+      .map((x) => {
+        const d = { title: clean(x?.title, 100), desc: clean(x?.desc, 160), stage: ['Pilot', 'Decision', 'Rollout'].includes(x?.stage) ? x.stage : 'Pilot', url: url(x?.url) };
+        if (isFileId(x?.file)) { d.file = x.file; d.fileName = clean(x.fileName, 120); d.size = num(x.size, 0, 50e6, 0); d.url = ''; }
+        return d;
+      })
       .filter((x) => x.title)
   };
   Object.assign(out, buildSchedule(out));
