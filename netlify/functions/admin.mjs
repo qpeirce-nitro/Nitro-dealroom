@@ -152,6 +152,19 @@ export default async (req) => {
       }
       return json({ ok: true });
     }
+    case 'updateDocs': {
+      // Used from inside a deal room by a signed-in Nitro rep to manage its Documents tab.
+      if (!isRid(body.rid) || !Array.isArray(body.docs)) return json({ error: 'not found' }, 404);
+      const base = 'room/' + body.rid + '/';
+      const cur = await store.get(base + 'config', { type: 'json' });
+      if (!cur) return json({ error: 'not found' }, 404);
+      const docs = body.docs.length ? body.docs : [{ title: '' }];
+      const config = sanitizeConfig({ ...cur, docs }, today());
+      config.preparedOn = cur.preparedOn;
+      if (!body.docs.length) config.docs = [];
+      await store.setJSON(base + 'config', config);
+      return json({ ok: true, docs: config.docs });
+    }
     case 'delete': {
       if (!isRid(body.rid)) return json({ error: 'not found' }, 404);
       const base = 'room/' + body.rid + '/';
