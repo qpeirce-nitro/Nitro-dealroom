@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Nitro Deal Rooms</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%226%22 y=%226%22 width=%2220%22 height=%2220%22 rx=%225%22 fill=%22%23F54811%22 transform=%22rotate(-15 16 16)%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Text&display=swap">
+<style>
+/* Layout: internal tool — header, list of deal rooms, and a sectioned create/edit form. Nitro "Midnight" single dark theme to match the rooms. */
+:root{--bg:#090B21;--surface:#12142E;--surface-2:#1A1C3A;--line:rgba(255,255,255,.1);--fg:#F4F4FA;--muted:#B9BACD;--faint:#9496AE;--accent:#9AA0F5;--cta:#D93706;--mark:#F54811;--done:#4FD1BE;--risk:#FFB199;--display:'DM Serif Text',Georgia,serif;--ui:'DM Sans',Arial,sans-serif;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--ui)}
+[hidden]{display:none!important}
+a{color:var(--fg)}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 80px;display:flex;flex-direction:column;gap:24px}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px}
+.lockup{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px}
+.tile{width:16px;height:16px;border-radius:4px;background:var(--mark);transform:rotate(-15deg)}
+h1{margin:0;font-family:var(--display);font-weight:400;font-size:clamp(32px,5vw,46px);line-height:1.08}
+h2{margin:0;font-size:18px;font-weight:600}
+.sub{color:var(--muted);font-size:14px}
+.label{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 18px;border-radius:999px;font:600 14px var(--ui);text-decoration:none;cursor:pointer;border:1px solid rgba(255,255,255,.22);background:transparent;color:var(--fg)}
+.btn.pri{background:var(--cta);border-color:var(--cta);color:#fff}
+.btn.danger{color:var(--risk);border-color:rgba(255,177,153,.5)}
+.btn:disabled{opacity:.6;cursor:wait}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);min-width:0}
+input,select,textarea{min-height:42px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:var(--bg);color:var(--fg);padding:8px 12px;font:15px var(--ui);width:100%}
+textarea{min-height:64px;resize:vertical}
+input[type=checkbox]{width:18px;height:18px;min-height:0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--min,200px)),1fr))}
+.rep{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));align-items:end;padding:12px;border:1px solid var(--line);border-radius:12px}
+.room{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center}
+.room .main{flex:999 1 260px;min-width:0;display:flex;flex-direction:column;gap:4px}
+.bar{height:6px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;width:140px}
+.bar i{display:block;height:100%;background:var(--done)}
+.pill{font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px;background:rgba(217,55,6,.2);color:#FFC2AE}
+.ok{padding:14px 16px;border-radius:12px;background:rgba(79,209,190,.12);border:1px solid rgba(79,209,190,.4);color:#CFF5EE;display:flex;flex-direction:column;gap:10px}
+.err{color:var(--risk);font-size:14px}
+.linkbox{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;word-break:break-all;background:var(--bg);border-radius:8px;padding:8px 10px;border:1px solid var(--line)}
+details{border-top:1px solid var(--line);padding-top:14px}
+summary{cursor:pointer;font-weight:600}
+.empty{color:var(--faint);padding:8px 0}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fg)}
+.stick{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding-block:20px 8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="lockup"><span class="tile" aria-hidden="true"></span>Nitro Deal Rooms</div><button class="btn" type="button" id="signOut" hidden>Sign out</button></div>
+
+  <!-- first-time setup -->
+  <section class="card" id="vSetup" hidden style="max-width:560px">
+    <h1>Set your admin code</h1>
+    <p class="sub">This code protects this page, where Nitro creates and manages deal rooms. Customers never need it. Choose something at least 8 characters long and share it only with your sales team.</p>
+    <form id="setupForm" style="display:flex;flex-direction:column;gap:12px">
+      <label class="f" for="sCode">Admin code<input id="sCode" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label class="f" for="sCode2">Type it again<input id="sCode2" type="password" autocomplete="new-password" minlength="8" required></label>
+      <span class="err" id="setupErr" role="alert" hidden></span>
+      <button class="btn pri" type="submit">Save admin code</button>
+    </form>
+  </section>
+
+  <!-- sign in -->
+  <section class="card" id="vLogin" hidden style="max-width:560px">
+    <h1>Sign in</h1>
+    <p class="sub">Enter your team's admin code to create and manage deal rooms.</p>
+    <form id="loginForm" style="display:flex;flex-direction:column;gap:12px">
+      <label class="f" for="lCode">Admin code<input id="lCode" type="password" autocomplete="current-password" required></label>
+      <span class="err" id="loginErr" role="alert" hidden>That code didn't work. Try again.</span>
+      <button class="btn pri" type="submit">Sign in</button>
+    </form>
+  </section>
+
+  <!-- list -->
+  <section id="vList" hidden style="display:flex;flex-direction:column;gap:18px">
+    <div class="top"><h1>Your deal rooms</h1><button class="btn pri" type="button" id="newBtn">+ New deal room</button></div>
+    <div id="created" class="ok" hidden role="status"></div>
+    <div id="rooms" style="display:flex;flex-direction:column;gap:12px"><div class="empty">Loading…</div></div>
+  </section>
+
+  <!-- form -->
+  <section id="vForm" hidden style="display:flex;flex-direction:column;gap:18px">
+    <div class="top"><h1 id="formTitle">New deal room</h1><button class="btn" type="button" id="cancelBtn">Back to list</button></div>
+    <form id="roomForm" style="display:flex;flex-direction:column;gap:18px" novalidate>
+      <section class="card"><h2>Account</h2>
+        <div class="grid" style="--min:220px">
+          <label class="f" for="account">Account name *<input id="account" required maxlength="80" placeholder="e.g. Kestrel Health"></label>
+          <label class="f" for="incumbent">Tool they use today<input id="incumbent" maxlength="60" placeholder="e.g. Adobe Acrobat"></label>
+          <label class="f" for="seats">Seats at full rollout *<input id="seats" type="number" min="1" required value="500"></label>
+          <label class="f" for="pilotUsers">Pilot users *<input id="pilotUsers" type="number" min="1" required value="100"></label>
+          <label class="f" for="pilotLocations">Pilot covers (optional)<input id="pilotLocations" maxlength="60" placeholder="e.g. 3 clinics"></label>
+        </div>
+        <div class="row"><span class="sub">Products:</span><label class="chk"><input type="checkbox" id="pPdf" checked> Nitro PDF Pro</label><label class="chk"><input type="checkbox" id="pSign" checked> Nitro Sign</label></div>
+      </section>
+
+      <section class="card"><h2>Key dates</h2>
+        <p class="sub">The Mutual Action Plan is built from these dates using Nitro's standard steps.</p>
+        <div class="grid" style="--min:180px">
+          <label class="f" for="dPilotStart">Pilot kickoff *<input id="dPilotStart" type="date" required></label>
+          <label class="f" for="dPilotEnd">Pilot ends *<input id="dPilotEnd" type="date" required></label>
+          <label class="f" for="dBriefing">Executive Briefing *<input id="dBriefing" type="date" required></label>
+          <label class="f" for="dDecision">Decision *<input id="dDecision" type="date" required></label>
+          <label class="f" for="dGoLive">Go-live *<input id="dGoLive" type="date" required></label>
+          <label class="f" for="dRenewal">Current tool renewal (optional)<input id="dRenewal" type="date"></label>
+        </div>
+        <label class="chk" id="rebuildWrap" hidden><input type="checkbox" id="rebuild"> Rebuild the plan from these dates (replaces all plan steps and their progress)</label>
+      </section>
+
+      <section class="card"><h2>Customer contacts</h2>
+        <p class="sub">Shown on the plan. The Executive sponsor and Economic buyer are named in the Executive Briefing.</p>
+        <div id="custRows" style="display:flex;flex-direction:column;gap:10px"></div>
+        <div><button class="btn" type="button" id="addCust">+ Add a contact</button></div>
+      </section>
+
+      <section class="card"><h2>Nitro team</h2>
+        <div id="teamRows" style="display:flex;flex-direction:column;gap:10px"></div>
+        <div class="grid" style="--min:260px">
+          <label class="f" for="bookingUrl">Booking link (optional)<input id="bookingUrl" type="url" placeholder="https://…"></label>
+          <label class="f" for="videoUrl">Welcome video link (optional)<input id="videoUrl" type="url" placeholder="https://…"></label>
+        </div>
+      </section>
+
+      <section class="card"><h2>Pricing</h2>
+        <div class="grid" style="--min:200px">
+          <label class="f" for="prAnnual">Annual total (as shown)<input id="prAnnual" maxlength="40" placeholder="e.g. $312,000"></label>
+          <label class="f" for="prSeat">Price per seat (as shown)<input id="prSeat" maxlength="40" placeholder="e.g. $130"></label>
+          <label class="f" for="prLock">Price lock note (optional)<input id="prLock" maxlength="80" placeholder="e.g. Same price for 3 years"></label>
+        </div>
+        <div class="grid" style="--min:200px">
+          <label class="f" for="prQuoted">Quoted $/seat/yr for the calculator<input id="prQuoted" type="number" min="0" placeholder="Leave empty to hide the calculator"></label>
+          <label class="f" for="prCurrent">Their current $/seat/yr (estimate)<input id="prCurrent" type="number" min="0" value="240"></label>
+        </div>
+        <p class="sub">Empty pricing shows "Pricing to follow" on the deal room.</p>
+      </section>
+
+      <section class="card"><h2>What we heard (optional)</h2>
+        <p class="sub">Up to four discovery quotes. The section is hidden if left empty.</p>
+        <div id="heardRows" style="display:flex;flex-direction:column;gap:10px"></div>
+      </section>
+
+      <section class="card">
+        <details><summary>Pilot success criteria</summary><div id="critRows" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div></details>
+        <details><summary>Documents</summary><p class="sub">Paste a link to share a document. Documents without a link show when they'll be shared.</p><div id="docRows" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div></details>
+      </section>
+
+      <div class="stick row"><button class="btn pri" type="submit" id="saveBtn">Create deal room</button><span class="err" id="formErr" role="alert" hidden></span></div>
+    </form>
+  </section>
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const h = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const ss = { get(k){ try { return sessionStorage.getItem(k) || ''; } catch(e){ return ''; } }, set(k, v){ try { v ? sessionStorage.setItem(k, v) : sessionStorage.removeItem(k); } catch(e){} } };
+  let code = ss.get('dr.admin'), defs = null, editing = null;
+  const views = ['vSetup','vLogin','vList','vForm'];
+  const show = (v) => { views.forEach(x => $(x).hidden = x !== v); $('signOut').hidden = !(v === 'vList' || v === 'vForm'); window.scrollTo(0, 0); };
+  const roomUrl = (rid) => location.origin + '/r/' + rid;
+  const fmt = (ms) => new Date(ms).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+
+  async function api(op, extra){
+    const r = await fetch('/api/admin', {method:'POST', headers:{'content-type':'application/json', 'x-admin-code':code}, body:JSON.stringify(Object.assign({op}, extra || {}))});
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('json')) throw Object.assign(new Error('The server isn’t responding. Reload and try again.'), {code:'offline'});
+    const d = await r.json();
+    if (r.status === 401) throw Object.assign(new Error('locked'), {code:'locked'});
+    if (!r.ok) throw Object.assign(new Error(d.error || 'Something went wrong.'), {code:'failed'});
+    return d;
+  }
+
+  /* --- auth --- */
+  $('setupForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const a = $('sCode').value, b = $('sCode2').value, err = $('setupErr'); err.hidden = true;
+    if (a.length < 8){ err.textContent = 'Use at least 8 characters.'; err.hidden = false; return; }
+    if (a !== b){ err.textContent = 'The two codes don’t match.'; err.hidden = false; return; }
+    try { await api('setup', {code:a}); code = a; ss.set('dr.admin', a); enter(); } catch(x){ err.textContent = x.message; err.hidden = false; }
+  });
+  $('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); code = $('lCode').value; $('loginErr').hidden = true;
+    try { await api('check'); ss.set('dr.admin', code); enter(); } catch(x){ $('loginErr').textContent = x.code === 'locked' ? 'That code didn’t work. Try again.' : x.message; $('loginErr').hidden = false; }
+  });
+  $('signOut').addEventListener('click', () => { code = ''; ss.set('dr.admin', ''); $('lCode').value = ''; show('vLogin'); });
+
+  async function enter(){ defs = await api('defaults'); show('vList'); loadRooms(); }
+
+  /* --- list --- */
+  async function loadRooms(){
+    const box = $('rooms');
+    let d; try { d = await api('list'); } catch(x){ if (x.code === 'locked') return show('vLogin'); box.innerHTML = '<div class="err">' + h(x.message) + '</div>'; return; }
+    if (!d.rooms.length){ box.innerHTML = '<div class="card"><b>No deal rooms yet.</b><span class="sub">Click “New deal room” to create the first one. It takes about two minutes.</span></div>'; return; }
+    box.innerHTML = d.rooms.map(r => {
+      const pct = r.total ? Math.round(r.done / r.total * 100) : 0;
+      const reqs = (r.requests || []).map(q => `<span class="pill">${q.kind === 'approve' ? 'Asked for order form' : 'Has questions'}${q.by ? ' · ' + h(q.by) : ''} · ${fmt(q.at)}</span>`).join(' ');
+      return `<div class="card"><div class="room">
+        <div class="main"><b style="font-size:18px">${h(r.account)}</b><span class="sub">${r.ae ? h(r.ae) + ' · ' : ''}Created ${fmt(r.createdAt)}${r.activity ? ' · Last change ' + fmt(r.activity.at) + (r.activity.by ? ' by ' + h(r.activity.by) : '') : ''}</span></div>
+        <div style="display:flex;align-items:center;gap:10px"><div class="bar"><i style="width:${pct}%"></i></div><span class="sub">${r.done}/${r.total} steps${r.risk ? ' · ' + r.risk + ' at risk' : ''}</span></div>
+      </div>
+      ${reqs ? `<div class="row">${reqs}</div>` : ''}
+      <div class="row"><a class="btn" href="/r/${h(r.rid)}" target="_blank" rel="noopener">Open</a><button class="btn" type="button" data-copy="${h(r.rid)}">Copy link</button><button class="btn" type="button" data-edit="${h(r.rid)}">Edit</button><button class="btn danger" type="button" data-del="${h(r.rid)}">Delete</button></div></div>`;
+    }).join('');
+  }
+  async function copy(text, btn){
+    const done = (msg) => { const o = btn.textContent; btn.textContent = msg; setTimeout(() => btn.textContent = o, 1600); };
+    try { await navigator.clipboard.writeText(text); done('Copied'); } catch(e){ window.prompt ? prompt('Copy this link:', text) : null; done('Select and copy'); }
+  }
+  $('rooms').addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.copy) return copy(roomUrl(b.dataset.copy), b);
+    if (b.dataset.edit){ const d = await api('get', {rid:b.dataset.edit}); openForm(d.config, b.dataset.edit); return; }
+    if (b.dataset.del){
+      if (b.dataset.armed !== '1'){ b.dataset.armed = '1'; b.textContent = 'Click again to delete for good'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Delete'; }, 4000); return; }
+      b.disabled = true; await api('delete', {rid:b.dataset.del}); loadRooms();
+    }
+  });
+  $('created').addEventListener('click', (e) => { const b = e.target.closest('[data-copy]'); if (b) copy(roomUrl(b.dataset.copy), b); });
+
+  /* --- form --- */
+  const roles = () => defs.roles;
+  const custRow = (p) => `<div class="rep" data-row="cust"><label class="f">Name<input data-k="name" maxlength="80" value="${h(p.name)}"></label><label class="f">Title<input data-k="title" maxlength="80" value="${h(p.title)}"></label><label class="f">Role<select data-k="role">${roles().map(r => `<option${r === p.role ? ' selected' : ''}>${h(r)}</option>`).join('')}</select></label><button class="btn" type="button" data-remove>Remove</button></div>`;
+  const teamRow = (key, label, p) => `<div class="rep" data-team="${key}"><b style="grid-column:1/-1">${label}</b><label class="f">Name<input data-k="name" maxlength="80" value="${h(p.name)}"></label><label class="f">Title<input data-k="title" maxlength="80" value="${h(p.title)}" placeholder="${label}"></label><label class="f">Email<input data-k="email" type="email" maxlength="120" value="${h(p.email)}"></label></div>`;
+  const heardRow = (x) => `<div class="rep" data-row="heard"><label class="f">Theme<input data-k="title" maxlength="60" value="${h(x.title)}" placeholder="e.g. Renewal pressure"></label><label class="f" style="grid-column:span 2">Quote<input data-k="quote" maxlength="300" value="${h(x.quote)}"></label><label class="f">Who said it<input data-k="who" maxlength="80" value="${h(x.who)}" placeholder="e.g. CFO"></label></div>`;
+  const critRow = (x) => `<div class="rep" data-row="crit"><label class="f" style="grid-column:span 2">Criterion<input data-k="label" maxlength="120" value="${h(x.label)}"></label><label class="f">Target<input data-k="target" maxlength="20" value="${h(x.target)}"></label></div>`;
+  const docRow = (x) => `<div class="rep" data-row="doc"><label class="f">Title<input data-k="title" maxlength="100" value="${h(x.title)}"></label><label class="f">Description<input data-k="desc" maxlength="160" value="${h(x.desc)}"></label><label class="f">Stage<select data-k="stage">${['Pilot','Decision','Rollout'].map(s => `<option${s === x.stage ? ' selected' : ''}>${s}</option>`).join('')}</select></label><label class="f">Link (https://…)<input data-k="url" type="url" value="${h(x.url)}"></label></div>`;
+  const rowsOf = (sel) => [...document.querySelectorAll(sel)].map(r => { const o = {}; r.querySelectorAll('[data-k]').forEach(i => o[i.dataset.k] = i.value.trim()); return o; });
+
+  function openForm(c, rid){
+    editing = rid || null;
+    c = c || {};
+    const d = c.dates || defs.dates, p = c.pricing || {}, t = c.team || {};
+    $('formTitle').textContent = rid ? 'Edit ' + (c.account || 'deal room') : 'New deal room';
+    $('saveBtn').textContent = rid ? 'Save changes' : 'Create deal room';
+    $('rebuildWrap').hidden = !rid; $('rebuild').checked = false;
+    $('account').value = c.account || ''; $('incumbent').value = c.incumbent || ''; $('seats').value = c.seats || 500; $('pilotUsers').value = c.pilotUsers || 100; $('pilotLocations').value = c.pilotLocations || '';
+    $('pPdf').checked = !c.products || c.products.pdf; $('pSign').checked = !c.products || c.products.sign;
+    $('dPilotStart').value = d.pilotStart; $('dPilotEnd').value = d.pilotEnd; $('dBriefing').value = d.briefing; $('dDecision').value = d.decision; $('dGoLive').value = d.goLive; $('dRenewal').value = d.renewal || '';
+    const cust = (c.customer && c.customer.length) ? c.customer : [{role:'Executive sponsor'}, {role:'Champion'}, {role:'Economic buyer'}, {role:'Procurement'}];
+    $('custRows').innerHTML = cust.map(x => custRow(Object.assign({name:'', title:''}, x))).join('');
+    $('teamRows').innerHTML = teamRow('ae', 'Account Executive', t.ae || {}) + teamRow('se', 'Solutions Engineer', t.se || {}) + teamRow('csm', 'Customer Success Manager', t.csm || {});
+    $('bookingUrl').value = c.bookingUrl || ''; $('videoUrl').value = c.videoUrl || '';
+    $('prAnnual').value = p.annual || ''; $('prSeat').value = p.perSeat || ''; $('prLock').value = p.priceLock || ''; $('prQuoted').value = p.quotedPerSeat || ''; $('prCurrent').value = p.currentPerSeat || 240;
+    const heard = (c.heard || []).slice(); while (heard.length < 4) heard.push({});
+    $('heardRows').innerHTML = heard.map(x => heardRow(Object.assign({title:'', quote:'', who:''}, x))).join('');
+    const crit = (c.criteria && c.criteria.length ? c.criteria : defs.criteria).slice(); while (crit.length < 6) crit.push({label:'', target:''});
+    $('critRows').innerHTML = crit.map(critRow).join('');
+    $('docRows').innerHTML = (c.docs && c.docs.length ? c.docs : defs.docs).map(docRow).join('');
+    $('formErr').hidden = true;
+    show('vForm'); $('account').focus();
+  }
+  $('newBtn').addEventListener('click', () => { $('created').hidden = true; openForm(null); });
+  $('cancelBtn').addEventListener('click', () => { show('vList'); loadRooms(); });
+  $('addCust').addEventListener('click', () => { if (document.querySelectorAll('[data-row="cust"]').length >= 8) return; $('custRows').insertAdjacentHTML('beforeend', custRow({name:'', title:'', role:'Other'})); });
+  $('custRows').addEventListener('click', (e) => { const b = e.target.closest('[data-remove]'); if (b) b.closest('.rep').remove(); });
+
+  $('roomForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('formErr'); err.hidden = true;
+    const need = ['account','seats','pilotUsers','dPilotStart','dPilotEnd','dBriefing','dDecision','dGoLive'].find(id => !$(id).value.trim());
+    if (need){ err.textContent = 'Fill in the required fields marked *.'; err.hidden = false; $(need).focus(); return; }
+    const dates = {pilotStart:$('dPilotStart').value, pilotEnd:$('dPilotEnd').value, briefing:$('dBriefing').value, decision:$('dDecision').value, goLive:$('dGoLive').value, renewal:$('dRenewal').value};
+    if (!(dates.pilotStart < dates.pilotEnd && dates.pilotEnd <= dates.briefing && dates.briefing <= dates.decision && dates.decision < dates.goLive)){ err.textContent = 'Check the dates: they should run in order from pilot kickoff to go-live.'; err.hidden = false; return; }
+    const team = {}; document.querySelectorAll('[data-team]').forEach(r => { const o = {}; r.querySelectorAll('[data-k]').forEach(i => o[i.dataset.k] = i.value.trim()); team[r.dataset.team] = o; });
+    const config = {
+      account:$('account').value.trim(), incumbent:$('incumbent').value.trim(), seats:+$('seats').value, pilotUsers:+$('pilotUsers').value, pilotLocations:$('pilotLocations').value.trim(),
+      products:{pdf:$('pPdf').checked, sign:$('pSign').checked}, dates,
+      customer: rowsOf('[data-row="cust"]').filter(x => x.name), team,
+      bookingUrl:$('bookingUrl').value.trim(), videoUrl:$('videoUrl').value.trim(),
+      pricing:{annual:$('prAnnual').value.trim(), perSeat:$('prSeat').value.trim(), priceLock:$('prLock').value.trim(), quotedPerSeat:+$('prQuoted').value || 0, currentPerSeat:+$('prCurrent').value || 240},
+      heard: rowsOf('[data-row="heard"]').filter(x => x.quote),
+      criteria: rowsOf('[data-row="crit"]').filter(x => x.label),
+      docs: rowsOf('[data-row="doc"]').filter(x => x.title)
+    };
+    const btn = $('saveBtn'); btn.disabled = true;
+    try {
+      if (editing){
+        await api('save', {rid:editing, config, rebuildPlan:$('rebuild').checked});
+        $('created').innerHTML = `<b>Saved ${h(config.account)}.</b><span class="sub" style="color:inherit">Changes show on the deal room the next time it's opened.</span>`;
+      } else {
+        const d = await api('create', {config});
+        $('created').innerHTML = `<b>${h(config.account)} deal room is ready.</b><span>Send this private link to your customer contacts:</span><div class="linkbox">${h(roomUrl(d.rid))}</div><div class="row"><button class="btn pri" type="button" data-copy="${h(d.rid)}">Copy link</button><a class="btn" href="/r/${h(d.rid)}" target="_blank" rel="noopener">Open deal room</a></div>`;
+      }
+      $('created').hidden = false; show('vList'); loadRooms();
+    } catch(x){ if (x.code === 'locked') return show('vLogin'); err.textContent = x.message; err.hidden = false; }
+    finally { btn.disabled = false; }
+  });
+
+  /* --- boot --- */
+  (async function(){
+    try {
+      const r = await fetch('/api/admin', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({op:'status'})});
+      const s = await r.json();
+      if (!s.setup) return show('vSetup');
+      if (code){ try { await api('check'); return enter(); } catch(e){} }
+      show('vLogin');
+    } catch(e){ document.querySelector('.wrap').insertAdjacentHTML('beforeend', '<div class="card err">The deal room server isn’t responding. Reload the page in a minute.</div>'); }
+  })();
+})();
+</script>
+</body>
+</html>
