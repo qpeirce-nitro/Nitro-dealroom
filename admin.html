@@ -82,6 +82,19 @@ summary{cursor:pointer;font-weight:600}
     <div class="top"><h1>Your deal rooms</h1><button class="btn pri" type="button" id="newBtn">+ New deal room</button></div>
     <div id="created" class="ok" hidden role="status"></div>
     <div id="rooms" style="display:flex;flex-direction:column;gap:12px"><div class="empty">Loading…</div></div>
+
+    <section class="card" id="libCard" aria-labelledby="libTitle" style="margin-top:12px">
+      <div class="top"><h2 id="libTitle">Nitro document library</h2></div>
+      <p class="sub">Upload standard collateral once, like the Pilot Overview, Installation Guide or Activation Instructions. Files marked “Every new room” are added to the Documents tab of every deal room you create from now on. PDF, Word, Excel, PowerPoint, CSV, text, PNG, JPG or ZIP, up to 4 MB.</p>
+      <div id="libList" style="display:flex;flex-direction:column;gap:10px"><div class="empty">Loading…</div></div>
+      <form id="libForm" class="rep" style="margin-top:4px">
+        <label class="f" for="libFile">File(s)<input id="libFile" type="file" multiple required accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.png,.jpg,.jpeg,.zip"></label>
+        <label class="f" for="libStage">Stage<select id="libStage"><option>Pilot</option><option>Decision</option><option>Rollout</option></select></label>
+        <label class="chk" style="align-self:center"><input type="checkbox" id="libAuto" checked> Every new room</label>
+        <button class="btn pri" type="submit" id="libBtn">Upload to library</button>
+        <span class="sub" id="libStatus" role="status" style="grid-column:1/-1"></span>
+      </form>
+    </section>
   </section>
 
   <!-- form -->
@@ -146,7 +159,7 @@ summary{cursor:pointer;font-weight:600}
 
       <section class="card">
         <details><summary>Pilot success criteria</summary><div id="critRows" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div></details>
-        <details><summary>Documents</summary><p class="sub">Paste a link to share a document. Documents without a link show when they'll be shared.</p><div id="docRows" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div></details>
+        <details id="docDetails"><summary>Documents</summary><p class="sub">For each document, paste a link, upload a file (up to 4 MB), or pick one from the Nitro library. Documents with neither show when they'll be shared. Library files marked “Every new room” are added automatically when you create a room.</p><div id="docRows" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div><div style="margin-top:10px"><button class="btn" type="button" id="addDoc">+ Add a document</button></div></details>
       </section>
 
       <div class="stick row"><button class="btn pri" type="submit" id="saveBtn">Create deal room</button><span class="err" id="formErr" role="alert" hidden></span></div>
@@ -188,7 +201,7 @@ summary{cursor:pointer;font-weight:600}
   });
   $('signOut').addEventListener('click', () => { code = ''; ss.set('dr.admin', ''); $('lCode').value = ''; show('vLogin'); });
 
-  async function enter(){ defs = await api('defaults'); show('vList'); loadRooms(); }
+  async function enter(){ defs = await api('defaults'); show('vList'); loadRooms(); loadLibrary(); }
 
   /* --- list --- */
   async function loadRooms(){
@@ -203,6 +216,7 @@ summary{cursor:pointer;font-weight:600}
         <div style="display:flex;align-items:center;gap:10px"><div class="bar"><i style="width:${pct}%"></i></div><span class="sub">${r.done}/${r.total} steps${r.risk ? ' · ' + r.risk + ' at risk' : ''}</span></div>
       </div>
       ${reqs ? `<div class="row">${reqs}</div>` : ''}
+      ${(r.uploads || []).length ? `<div class="row"><span class="sub">Shared by the customer:</span>${r.uploads.map(u => `<a class="btn" href="/api/room?r=${h(r.rid)}&f=${h(u.fid)}" target="_blank" rel="noopener">${h(u.name)}</a>`).join('')}</div>` : ''}
       <div class="row"><a class="btn" href="/r/${h(r.rid)}" target="_blank" rel="noopener">Open</a><button class="btn" type="button" data-copy="${h(r.rid)}">Copy link</button><button class="btn" type="button" data-edit="${h(r.rid)}">Edit</button><button class="btn danger" type="button" data-del="${h(r.rid)}">Delete</button></div></div>`;
     }).join('');
   }
@@ -227,8 +241,67 @@ summary{cursor:pointer;font-weight:600}
   const teamRow = (key, label, p) => `<div class="rep" data-team="${key}"><b style="grid-column:1/-1">${label}</b><label class="f">Name<input data-k="name" maxlength="80" value="${h(p.name)}"></label><label class="f">Title<input data-k="title" maxlength="80" value="${h(p.title)}" placeholder="${label}"></label><label class="f">Email<input data-k="email" type="email" maxlength="120" value="${h(p.email)}"></label></div>`;
   const heardRow = (x) => `<div class="rep" data-row="heard"><label class="f">Theme<input data-k="title" maxlength="60" value="${h(x.title)}" placeholder="e.g. Renewal pressure"></label><label class="f" style="grid-column:span 2">Quote<input data-k="quote" maxlength="300" value="${h(x.quote)}"></label><label class="f">Who said it<input data-k="who" maxlength="80" value="${h(x.who)}" placeholder="e.g. CFO"></label></div>`;
   const critRow = (x) => `<div class="rep" data-row="crit"><label class="f" style="grid-column:span 2">Criterion<input data-k="label" maxlength="120" value="${h(x.label)}"></label><label class="f">Target<input data-k="target" maxlength="20" value="${h(x.target)}"></label></div>`;
-  const docRow = (x) => `<div class="rep" data-row="doc"><label class="f">Title<input data-k="title" maxlength="100" value="${h(x.title)}"></label><label class="f">Description<input data-k="desc" maxlength="160" value="${h(x.desc)}"></label><label class="f">Stage<select data-k="stage">${['Pilot','Decision','Rollout'].map(s => `<option${s === x.stage ? ' selected' : ''}>${s}</option>`).join('')}</select></label><label class="f">Link (https://…)<input data-k="url" type="url" value="${h(x.url)}"></label></div>`;
-  const rowsOf = (sel) => [...document.querySelectorAll(sel)].map(r => { const o = {}; r.querySelectorAll('[data-k]').forEach(i => o[i.dataset.k] = i.value.trim()); return o; });
+  let library = [];
+  const sizeTxt = (n) => n ? (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB') : '';
+  const fileCell = (x) => x.file
+    ? `<span class="chk">File: ${h(x.fileName || 'Attached file')} <span class="sub">${h(sizeTxt(x.size))}</span></span><button class="btn" type="button" data-unfile>Remove file</button>`
+    : `<label class="btn" style="cursor:pointer">Upload file<input type="file" data-upfile accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.png,.jpg,.jpeg,.zip" style="position:absolute;width:1px;height:1px;opacity:0"></label>${library.length ? `<select data-lib aria-label="Use a library file"><option value="">…or use a library file</option>${library.map(l => `<option value="${h(l.fid)}">${h(l.title)}</option>`).join('')}</select>` : ''}`;
+  const docRow = (x) => `<div class="rep" data-row="doc" data-file="${h(x.file || '')}" data-filename="${h(x.fileName || '')}" data-size="${h(x.size || '')}"><label class="f">Title<input data-k="title" maxlength="100" value="${h(x.title)}"></label><label class="f">Description<input data-k="desc" maxlength="160" value="${h(x.desc)}"></label><label class="f">Stage<select data-k="stage">${['Pilot','Decision','Rollout'].map(s => `<option${s === x.stage ? ' selected' : ''}>${s}</option>`).join('')}</select></label><label class="f"${x.file ? ' hidden' : ''}>Link (https://…)<input data-k="url" type="url" value="${h(x.url)}"></label><div class="row" data-filecell style="grid-column:1/-1">${fileCell(x)}<span class="sub" data-filestatus role="status"></span><button class="btn danger" type="button" data-remove style="margin-left:auto">Remove document</button></div></div>`;
+  const rowsOf = (sel) => [...document.querySelectorAll(sel)].map(r => { const o = {}; r.querySelectorAll('[data-k]').forEach(i => o[i.dataset.k] = i.value.trim()); if (r.dataset.file){ o.file = r.dataset.file; o.fileName = r.dataset.filename; o.size = +r.dataset.size || 0; o.url = ''; } return o; });
+  const readB64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f); });
+  function setRowFile(row, f){
+    row.dataset.file = f ? f.fid : ''; row.dataset.filename = f ? f.name : ''; row.dataset.size = f ? f.size : '';
+    row.querySelector('[data-k=url]').closest('label').hidden = !!f;
+    if (f && !row.querySelector('[data-k=title]').value.trim()) row.querySelector('[data-k=title]').value = f.title || f.name.replace(/\.[^.]+$/, '');
+    const cell = row.querySelector('[data-filecell]'); const keep = [...cell.querySelectorAll('[data-filestatus],[data-remove]')];
+    cell.innerHTML = fileCell({file: f && f.fid, fileName: f && f.name, size: f && f.size}); keep.forEach(k => cell.appendChild(k));
+  }
+  $('docRows').addEventListener('change', async (e) => {
+    const row = e.target.closest('[data-row="doc"]'); if (!row) return;
+    const status = row.querySelector('[data-filestatus]');
+    if (e.target.matches('[data-lib]') && e.target.value){ const l = library.find(x => x.fid === e.target.value); if (l){ if (!row.querySelector('[data-k=desc]').value.trim()) row.querySelector('[data-k=desc]').value = l.desc || ''; setRowFile(row, {fid:l.fid, name:l.name, size:l.size, title:l.title}); } return; }
+    if (e.target.matches('[data-upfile]') && e.target.files[0]){
+      const f = e.target.files[0];
+      if (f.size > 4 * 1048576){ status.textContent = 'Files can be up to 4 MB.'; return; }
+      status.textContent = 'Uploading…';
+      try { const d = await api('uploadFile', {scope:'room', name:f.name, data: await readB64(f)}); status.textContent = ''; setRowFile(row, d.file); }
+      catch(x){ if (x.code === 'locked') return show('vLogin'); status.textContent = x.message; }
+    }
+  });
+  $('docRows').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-row="doc"]'); if (!row) return;
+    if (e.target.closest('[data-unfile]')) setRowFile(row, null);
+    if (e.target.closest('[data-remove]')) row.remove();
+  });
+  $('addDoc').addEventListener('click', () => $('docRows').insertAdjacentHTML('beforeend', docRow({title:'', desc:'', stage:'Pilot', url:''})));
+
+  async function loadLibrary(){
+    try { library = (await api('library')).library; } catch(x){ if (x.code === 'locked') return show('vLogin'); library = []; }
+    const box = $('libList');
+    if (!library.length){ box.innerHTML = '<div class="empty">No library files yet.</div>'; return; }
+    box.innerHTML = library.map(l => `<div class="rep" data-lib-row="${h(l.fid)}"><label class="f">Title<input data-lk="title" maxlength="100" value="${h(l.title)}"></label><label class="f">Description<input data-lk="desc" maxlength="160" value="${h(l.desc)}"></label><label class="f">Stage<select data-lk="stage">${['Pilot','Decision','Rollout'].map(s => `<option${s === l.stage ? ' selected' : ''}>${s}</option>`).join('')}</select></label><label class="chk" style="align-self:center"><input type="checkbox" data-lk="auto"${l.auto ? ' checked' : ''}> Every new room</label><div class="row" style="grid-column:1/-1"><span class="sub">File: ${h(l.name)} · ${h(sizeTxt(l.size))}</span><button class="btn danger" type="button" data-libdel style="margin-left:auto">Remove from library</button></div></div>`).join('');
+  }
+  $('libList').addEventListener('change', async (e) => {
+    const row = e.target.closest('[data-lib-row]'); if (!row) return;
+    const k = e.target.dataset.lk; const v = k === 'auto' ? e.target.checked : e.target.value;
+    try { await api('updateLibrary', {fid:row.dataset.libRow, [k]:v}); const l = library.find(x => x.fid === row.dataset.libRow); if (l) l[k] = v; } catch(x){ $('libStatus').textContent = x.message; }
+  });
+  $('libList').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-libdel]'); if (!b) return;
+    if (b.dataset.armed !== '1'){ b.dataset.armed = '1'; b.textContent = 'Click again to remove'; setTimeout(() => { b.dataset.armed = ''; b.textContent = 'Remove from library'; }, 4000); return; }
+    b.disabled = true; await api('deleteLibrary', {fid:b.closest('[data-lib-row]').dataset.libRow}); loadLibrary();
+  });
+  $('libForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const files = [...$('libFile').files], st = $('libStatus'); if (!files.length) return;
+    $('libBtn').disabled = true;
+    for (const f of files){
+      if (f.size > 4 * 1048576){ st.textContent = f.name + ' is over 4 MB. Compress it or share it as a link instead.'; continue; }
+      st.textContent = 'Uploading ' + f.name + '…';
+      try { await api('uploadFile', {scope:'library', name:f.name, data: await readB64(f), stage:$('libStage').value, auto:$('libAuto').checked}); st.textContent = 'Added ' + f.name + '. Edit its title and description below.'; }
+      catch(x){ if (x.code === 'locked') return show('vLogin'); st.textContent = x.message; }
+    }
+    $('libFile').value = ''; $('libBtn').disabled = false; loadLibrary();
+  });
 
   function openForm(c, rid){
     editing = rid || null;
@@ -250,6 +323,7 @@ summary{cursor:pointer;font-weight:600}
     const crit = (c.criteria && c.criteria.length ? c.criteria : defs.criteria).slice(); while (crit.length < 6) crit.push({label:'', target:''});
     $('critRows').innerHTML = crit.map(critRow).join('');
     $('docRows').innerHTML = (c.docs && c.docs.length ? c.docs : defs.docs).map(docRow).join('');
+    $('docDetails').open = !!rid;
     $('formErr').hidden = true;
     show('vForm'); $('account').focus();
   }

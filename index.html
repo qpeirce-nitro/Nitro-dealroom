@@ -337,7 +337,7 @@ details p{margin:0 0 20px;font-family:var(--body);font-size:16px;line-height:1.6
 
   const rid = (location.pathname.match(/^\/r\/([A-Za-z0-9]{16,40})/) || [])[1] || new URLSearchParams(location.search).get('r') || '';
   const API = '/api/room?r=' + encodeURIComponent(rid);
-  let C = null, tasks = [];
+  let C = null, tasks = [], uploads = [];
 
   /* ---------------- data ---------------- */
   let myName = ls.get('dr.name', '');
@@ -589,15 +589,50 @@ details p{margin:0 0 20px;font-family:var(--body);font-size:16px;line-height:1.6
       <div style="display:flex;flex-direction:column;gap:12px"><h1>Shared <span class="acc">documents.</span></h1><p class="lede">Everything for the pilot, the decision and the rollout, in one place.</p></div>
       <div class="seg" role="group" aria-label="Filter by stage" id="docSeg" style="align-self:flex-start">${stages.map(s => `<button type="button" data-stage="${s}" aria-pressed="${s === docStage}">${s === 'All' ? 'All documents' : s}</button>`).join('')}</div>
       <section class="listpanel" aria-label="From Nitro"><span class="label">From Nitro</span><div id="docList"></div></section>
-      <section class="card soft" style="border-style:dashed;align-items:center;text-align:center;padding:40px 24px"><b style="font-size:17px">From ${h(C.account)}</b><span class="sub">Send security questionnaires, vendor forms and MSA redlines to ${h(C.team.ae.email || 'your Nitro contact')} and we'll add them here.</span></section>
+      <section class="listpanel" aria-label="From ${h(C.account)}"><span class="label">From ${h(C.account)}</span>
+        <div class="doc" style="flex-direction:column;align-items:stretch;gap:10px">
+          <span class="sub">Share security questionnaires, vendor forms or MSA redlines with the Nitro team. PDF, Word, Excel, PowerPoint, CSV, text, PNG, JPG or ZIP, up to 4 MB each.</span>
+          <div class="row-btns"><label class="btn pri sm" for="upFile" style="cursor:pointer">Upload a file</label><input id="upFile" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.png,.jpg,.jpeg,.zip" style="position:absolute;width:1px;height:1px;opacity:0"><span class="sub" id="upStatus" role="status"></span></div>
+        </div>
+        <div id="upList"></div>
+      </section>
     </div></section>`;
+    const fileUrl = (fid) => API + '&f=' + encodeURIComponent(fid);
+    const sizeTxt = (n) => n ? (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB') : '';
+    const extOf = (n) => (String(n || '').split('.').pop() || 'DOC').slice(0, 4).toUpperCase();
     const draw = () => { const box = $('docList'); box.textContent = '';
       C.docs.filter(d => docStage === 'All' || d.stage === docStage).forEach(d => {
-        const action = d.url ? el('a', {class:'btn sec2 sm', href:d.url, target:'_blank', rel:'noopener', text:'Open'}) : el('span', {class:'locked', text: d.stage === 'Pilot' ? 'Shared at pilot kickoff' : d.stage === 'Decision' ? 'Shared at the Executive Briefing' : 'Shared at onboarding'});
-        box.appendChild(el('div', {class:'doc'}, [el('span', {class:'dtype', 'aria-hidden':'true', text: d.url ? 'DOC' : '—'}), el('div', {class:'dmain'}, [el('b', {text:d.title}), el('span', {class:'sub', text:d.desc})]), el('span', {class:'dstage', text:d.stage}), action]));
+        let action, tag;
+        if (d.file){ action = el('a', {class:'btn sec2 sm', href:fileUrl(d.file), target:'_blank', rel:'noopener', text:'Download'}); tag = extOf(d.fileName); }
+        else if (d.url){ action = el('a', {class:'btn sec2 sm', href:d.url, target:'_blank', rel:'noopener', text:'Open'}); tag = 'LINK'; }
+        else { action = el('span', {class:'locked', text: d.stage === 'Pilot' ? 'Shared at pilot kickoff' : d.stage === 'Decision' ? 'Shared at the Executive Briefing' : 'Shared at onboarding'}); tag = '—'; }
+        const sub = [d.desc, d.file ? sizeTxt(d.size) : ''].filter(Boolean).join(' · ');
+        box.appendChild(el('div', {class:'doc'}, [el('span', {class:'dtype', 'aria-hidden':'true', text:tag}), el('div', {class:'dmain'}, [el('b', {text:d.title}), el('span', {class:'sub', text:sub})]), el('span', {class:'dstage', text:d.stage}), action]));
       }); };
+    const drawUploads = () => { const box = $('upList'); box.textContent = '';
+      if (!uploads.length){ box.appendChild(el('div', {class:'doc'}, [el('span', {class:'sub', text:'Nothing shared yet.'})])); return; }
+      uploads.forEach(u => {
+        let armedDel = false;
+        const del = el('button', {class:'btn sec2 sm', type:'button', text:'Remove', onclick: async () => {
+          if (!armedDel){ armedDel = true; del.textContent = 'Click again to remove'; setTimeout(() => { armedDel = false; del.textContent = 'Remove'; }, 4000); return; }
+          del.disabled = true; try { await api('POST', {op:'deleteUpload', fid:u.fid, by:myName}); uploads = uploads.filter(x => x.fid !== u.fid); drawUploads(); } catch(e){ $('upStatus').textContent = 'Couldn’t remove that file. Try again.'; del.disabled = false; }
+        }});
+        box.appendChild(el('div', {class:'doc'}, [el('span', {class:'dtype', 'aria-hidden':'true', text:extOf(u.name)}), el('div', {class:'dmain'}, [el('b', {text:u.name}), el('span', {class:'sub', text:[sizeTxt(u.size), (u.by ? 'Shared by ' + u.by : 'Shared') + ' ' + ago(u.at)].filter(Boolean).join(' · ')})]), el('a', {class:'btn sec2 sm', href:fileUrl(u.fid), target:'_blank', rel:'noopener', text:'Download'}), del]));
+      }); };
+    $('upFile').addEventListener('change', async (e) => {
+      const files = [...e.target.files]; e.target.value = ''; const st = $('upStatus');
+      for (const f of files){
+        if (f.size > 4 * 1048576){ st.textContent = f.name + ' is over 4 MB. Email it to your Nitro contact instead.'; continue; }
+        st.textContent = 'Uploading ' + f.name + '…';
+        try {
+          const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f); });
+          const d = await api('POST', {op:'upload', name:f.name, data, by:myName});
+          uploads.unshift(d.upload); drawUploads(); st.textContent = f.name + ' shared with the Nitro team.';
+        } catch(err){ st.textContent = (err && err.message && err.code === 'failed' ? err.message : 'Couldn’t upload ' + f.name + '. Try again.'); }
+      }
+    });
     $('docSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { docStage = b.dataset.stage; $('docSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); draw(); }));
-    draw();
+    draw(); drawUploads();
   }
 
   function renderBrief(){
@@ -776,7 +811,7 @@ details p{margin:0 0 20px;font-family:var(--body);font-size:16px;line-height:1.6
     let d;
     try { d = await api('GET'); }
     catch(e){ return landing(e.code === 'missing' ? 'This link isn’t active' : 'We couldn’t load your deal room', e.code === 'missing' ? 'Check the link your Nitro contact sent you, or ask them for a new one.' : 'Check your connection and reload the page.'); }
-    C = d.config;
+    C = d.config; uploads = d.uploads || [];
     document.title = C.account + ' Deal Room';
     $('hdrAcct').textContent = C.account; $('hdrFor').hidden = false; $('hdrMark').hidden = false; $('hdrMark').textContent = initials(C.account).slice(0, 1);
     $('navwrap').hidden = false;
