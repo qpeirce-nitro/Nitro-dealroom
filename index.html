@@ -583,12 +583,57 @@ details p{margin:0 0 20px;font-family:var(--body);font-size:16px;line-height:1.6
   }
 
   let docStage = 'All';
+  /* Nitro team mode: a rep signs in with the team code to manage documents inside the room. */
+  const ss = { get(k){ try { return sessionStorage.getItem(k) || ''; } catch(e){ return ''; } }, set(k, v){ try { v ? sessionStorage.setItem(k, v) : sessionStorage.removeItem(k); } catch(e){} } };
+  let nitroCode = ss.get('dr.admin'), isNitro = false, nitroLib = [], nitroForm = false;
+  async function adminApi(op, extra){
+    const r = await fetch('/api/admin', {method:'POST', headers:{'content-type':'application/json', 'x-admin-code':nitroCode}, body:JSON.stringify(Object.assign({op}, extra || {}))});
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('json')) throw Object.assign(new Error('The server isn’t responding. Try again in a minute.'), {code:'offline'});
+    const d = await r.json();
+    if (r.status === 401){ isNitro = false; ss.set('dr.admin', ''); throw Object.assign(new Error('That code didn’t work.'), {code:'locked'}); }
+    if (!r.ok) throw Object.assign(new Error(d.error || 'Something went wrong.'), {code:'failed'});
+    return d;
+  }
+  async function nitroSignIn(code){
+    nitroCode = code; await adminApi('check'); isNitro = true; ss.set('dr.admin', code);
+    try { nitroLib = (await adminApi('library')).library; } catch(e){ nitroLib = []; }
+  }
+  async function saveDocs(next, statusEl){
+    if (statusEl) statusEl.textContent = 'Saving…';
+    try { const d = await adminApi('updateDocs', {rid, docs: next}); C.docs = d.docs; renderDocs(); const st = $('nitroStatus'); if (st) st.textContent = 'Saved. Customers see this the next time they open the room.'; }
+    catch(e){ if (e.code === 'locked'){ renderDocs(); } if (statusEl) statusEl.textContent = e.message; }
+  }
+  const readB64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f); });
+  async function uploadForDoc(f, statusEl){
+    if (f.size > 4 * 1048576){ statusEl.textContent = f.name + ' is over 4 MB. Compress it, or share it as a link.'; return null; }
+    statusEl.textContent = 'Uploading ' + f.name + '…';
+    try { const d = await adminApi('uploadFile', {scope:'room', name:f.name, data: await readB64(f)}); statusEl.textContent = ''; return d.file; }
+    catch(e){ statusEl.textContent = e.message; return null; }
+  }
+
   function renderDocs(){
     const stages = ['All','Pilot','Decision','Rollout'].filter(s => s === 'All' || C.docs.some(d => d.stage === s));
+    if (!stages.includes(docStage)) docStage = 'All';
     $('pgDocs').innerHTML = `<section class="sec gut" style="padding-top:72px"><div class="narrow" style="max-width:1080px;display:flex;flex-direction:column;gap:28px">
       <div style="display:flex;flex-direction:column;gap:12px"><h1>Shared <span class="acc">documents.</span></h1><p class="lede">Everything for the pilot, the decision and the rollout, in one place.</p></div>
+      ${isNitro ? `<div class="toast" style="align-self:stretch;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between"><span><b>Nitro team view.</b> Upload, replace or remove documents below. Customers don’t see these controls.</span><button class="btn sec2 sm" type="button" id="nitroOut">Sign out</button><span class="sub" id="nitroStatus" role="status" style="flex-basis:100%;color:inherit"></span></div>` : ''}
       <div class="seg" role="group" aria-label="Filter by stage" id="docSeg" style="align-self:flex-start">${stages.map(s => `<button type="button" data-stage="${s}" aria-pressed="${s === docStage}">${s === 'All' ? 'All documents' : s}</button>`).join('')}</div>
-      <section class="listpanel" aria-label="From Nitro"><span class="label">From Nitro</span><div id="docList"></div></section>
+      <section class="listpanel" aria-label="From Nitro"><span class="label">From Nitro</span><div id="docList"></div>
+        ${isNitro ? `<div class="doc" style="flex-direction:column;align-items:stretch;gap:12px;background:rgba(255,255,255,.03)">
+          <b>Add a document</b>
+          <div class="grid" style="--min:200px;gap:10px">
+            <label class="sub" style="display:flex;flex-direction:column;gap:6px" for="ndTitle">Title<input id="ndTitle" class="ctrl" style="border-radius:10px;min-height:42px;font-weight:500" maxlength="100" placeholder="e.g. Nitro Installation Guide"></label>
+            <label class="sub" style="display:flex;flex-direction:column;gap:6px" for="ndDesc">Description (optional)<input id="ndDesc" class="ctrl" style="border-radius:10px;min-height:42px;font-weight:500" maxlength="160"></label>
+            <label class="sub" style="display:flex;flex-direction:column;gap:6px" for="ndStage">Stage<select id="ndStage" class="ctrl" style="border-radius:10px;min-height:42px"><option>Pilot</option><option>Decision</option><option>Rollout</option></select></label>
+            <label class="sub" style="display:flex;flex-direction:column;gap:6px" for="ndUrl">Link (optional)<input id="ndUrl" class="ctrl" style="border-radius:10px;min-height:42px;font-weight:500" type="url" placeholder="https://…"></label>
+          </div>
+          <div class="row-btns"><label class="btn pri sm" for="ndFile" style="cursor:pointer">Upload file & add</label><input id="ndFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.png,.jpg,.jpeg,.zip" style="position:absolute;width:1px;height:1px;opacity:0"><button class="btn sec2 sm" type="button" id="ndLink">Add as link</button>
+            ${nitroLib.length ? `<select id="ndLib" class="ctrl" style="border-radius:10px;min-height:42px" aria-label="Add from Nitro library"><option value="">Add from Nitro library…</option>${nitroLib.map(l => `<option value="${h(l.fid)}">${h(l.title)}</option>`).join('')}</select>` : ''}
+            <span class="sub" id="ndStatus" role="status"></span></div>
+          <span class="sub">Files up to 4 MB: PDF, Word, Excel, PowerPoint, CSV, text, PNG, JPG or ZIP.</span>
+        </div>` : ''}
+      </section>
       <section class="listpanel" aria-label="From ${h(C.account)}"><span class="label">From ${h(C.account)}</span>
         <div class="doc" style="flex-direction:column;align-items:stretch;gap:10px">
           <span class="sub">Share security questionnaires, vendor forms or MSA redlines with the Nitro team. PDF, Word, Excel, PowerPoint, CSV, text, PNG, JPG or ZIP, up to 4 MB each.</span>
@@ -596,19 +641,43 @@ details p{margin:0 0 20px;font-family:var(--body);font-size:16px;line-height:1.6
         </div>
         <div id="upList"></div>
       </section>
+      ${isNitro ? '' : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
+        <button class="btn sec2 sm" type="button" id="nitroIn" style="opacity:.8">Nitro team sign-in</button>
+        <form id="nitroForm" class="row-btns" ${nitroForm ? '' : 'hidden'}><label class="sub" for="nitroCode">Team code</label><input id="nitroCode" type="password" autocomplete="current-password" class="ctrl" style="border-radius:10px;min-height:42px;width:200px;font-weight:500"><button class="btn pri sm" type="submit">Sign in</button><span class="sub" id="nitroErr" role="alert"></span></form>
+      </div>`}
     </div></section>`;
     const fileUrl = (fid) => API + '&f=' + encodeURIComponent(fid);
     const sizeTxt = (n) => n ? (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB') : '';
     const extOf = (n) => (String(n || '').split('.').pop() || 'DOC').slice(0, 4).toUpperCase();
+    const fileInput = (onFile) => { const i = el('input', {type:'file', accept:'.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.png,.jpg,.jpeg,.zip', style:'position:absolute;width:1px;height:1px;opacity:0'}); i.addEventListener('change', () => { if (i.files[0]) onFile(i.files[0]); }); return i; };
     const draw = () => { const box = $('docList'); box.textContent = '';
-      C.docs.filter(d => docStage === 'All' || d.stage === docStage).forEach(d => {
+      C.docs.forEach((d, idx) => {
+        if (docStage !== 'All' && d.stage !== docStage) return;
         let action, tag;
         if (d.file){ action = el('a', {class:'btn sec2 sm', href:fileUrl(d.file), target:'_blank', rel:'noopener', text:'Download'}); tag = extOf(d.fileName); }
         else if (d.url){ action = el('a', {class:'btn sec2 sm', href:d.url, target:'_blank', rel:'noopener', text:'Open'}); tag = 'LINK'; }
         else { action = el('span', {class:'locked', text: d.stage === 'Pilot' ? 'Shared at pilot kickoff' : d.stage === 'Decision' ? 'Shared at the Executive Briefing' : 'Shared at onboarding'}); tag = '—'; }
         const sub = [d.desc, d.file ? sizeTxt(d.size) : ''].filter(Boolean).join(' · ');
-        box.appendChild(el('div', {class:'doc'}, [el('span', {class:'dtype', 'aria-hidden':'true', text:tag}), el('div', {class:'dmain'}, [el('b', {text:d.title}), el('span', {class:'sub', text:sub})]), el('span', {class:'dstage', text:d.stage}), action]));
-      }); };
+        const kids = [el('span', {class:'dtype', 'aria-hidden':'true', text:tag}), el('div', {class:'dmain'}, [el('b', {text:d.title}), el('span', {class:'sub', text:sub})]), el('span', {class:'dstage', text:d.stage}), action];
+        if (isNitro){
+          const st = el('span', {class:'sub', role:'status'});
+          const upId = 'docUp' + idx;
+          const inp = fileInput(async (f) => { const up = await uploadForDoc(f, st); if (!up) return; const next = C.docs.map((x, j) => j === idx ? Object.assign({}, x, {file:up.fid, fileName:up.name, size:up.size, url:''}) : x); saveDocs(next, st); });
+          inp.id = upId;
+          const linkBox = el('form', {class:'row-btns', hidden:''}, [el('input', {type:'url', class:'ctrl', style:'border-radius:10px;min-height:40px;width:240px;font-weight:500', placeholder:'https://…', 'aria-label':'Link for ' + d.title}), el('button', {class:'btn pri sm', type:'submit', text:'Save link'})]);
+          linkBox.addEventListener('submit', (e) => { e.preventDefault(); const u = linkBox.querySelector('input').value.trim(); if (!/^https:\/\//i.test(u)){ st.textContent = 'Links must start with https://'; return; } const next = C.docs.map((x, j) => j === idx ? Object.assign({}, x, {url:u, file:undefined, fileName:undefined, size:undefined}) : x); saveDocs(next, st); });
+          let armed = false;
+          const rm = el('button', {class:'btn sec2 sm', type:'button', text:'Remove', onclick: () => { if (!armed){ armed = true; rm.textContent = 'Click again to remove'; setTimeout(() => { armed = false; rm.textContent = 'Remove'; }, 4000); return; } saveDocs(C.docs.filter((x, j) => j !== idx), st); }});
+          const tools = el('div', {class:'row-btns', style:'flex-basis:100%;gap:8px;padding-left:62px'}, [
+            el('label', {class:'btn sec2 sm', for:upId, style:'cursor:pointer', text: d.file ? 'Replace file' : 'Upload file'}), inp,
+            el('button', {class:'btn sec2 sm', type:'button', text: d.url ? 'Change link' : 'Add link', onclick: () => { linkBox.hidden = !linkBox.hidden; if (!linkBox.hidden) linkBox.querySelector('input').focus(); }}),
+            rm, linkBox, st]);
+          kids.push(tools);
+        }
+        box.appendChild(el('div', {class:'doc'}, kids));
+      });
+      if (!box.children.length) box.appendChild(el('div', {class:'doc'}, [el('span', {class:'sub', text:'No documents yet.'})]));
+    };
     const drawUploads = () => { const box = $('upList'); box.textContent = '';
       if (!uploads.length){ box.appendChild(el('div', {class:'doc'}, [el('span', {class:'sub', text:'Nothing shared yet.'})])); return; }
       uploads.forEach(u => {
@@ -625,15 +694,48 @@ details p{margin:0 0 20px;font-family:var(--body);font-size:16px;line-height:1.6
         if (f.size > 4 * 1048576){ st.textContent = f.name + ' is over 4 MB. Email it to your Nitro contact instead.'; continue; }
         st.textContent = 'Uploading ' + f.name + '…';
         try {
-          const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f); });
+          const data = await readB64(f);
           const d = await api('POST', {op:'upload', name:f.name, data, by:myName});
           uploads.unshift(d.upload); drawUploads(); st.textContent = f.name + ' shared with the Nitro team.';
         } catch(err){ st.textContent = (err && err.message && err.code === 'failed' ? err.message : 'Couldn’t upload ' + f.name + '. Try again.'); }
       }
     });
     $('docSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { docStage = b.dataset.stage; $('docSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); draw(); }));
+    if (isNitro){
+      $('nitroOut').addEventListener('click', () => { isNitro = false; nitroCode = ''; ss.set('dr.admin', ''); renderDocs(); });
+      const st = $('ndStatus');
+      const base = () => ({title: $('ndTitle').value.trim(), desc: $('ndDesc').value.trim(), stage: $('ndStage').value});
+      $('ndFile').addEventListener('change', async (e) => {
+        const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+        const up = await uploadForDoc(f, st); if (!up) return;
+        const b = base(); saveDocs(C.docs.concat([Object.assign(b, {title: b.title || f.name.replace(/\.[^.]+$/, ''), file:up.fid, fileName:up.name, size:up.size, url:''})]), st);
+      });
+      $('ndLink').addEventListener('click', () => {
+        const b = base(), u = $('ndUrl').value.trim();
+        if (!b.title){ st.textContent = 'Add a title first.'; $('ndTitle').focus(); return; }
+        if (!/^https:\/\//i.test(u)){ st.textContent = 'Paste a link that starts with https://'; $('ndUrl').focus(); return; }
+        saveDocs(C.docs.concat([Object.assign(b, {url:u})]), st);
+      });
+      if ($('ndLib')) $('ndLib').addEventListener('change', (e) => {
+        const l = nitroLib.find(x => x.fid === e.target.value); if (!l) return;
+        const key = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+        const slot = C.docs.findIndex(d => !d.file && !d.url && key(d.title) === key(l.title));
+        const doc = {title:l.title, desc:l.desc, stage:l.stage, file:l.fid, fileName:l.name, size:l.size, url:''};
+        const next = slot >= 0 ? C.docs.map((d, j) => j === slot ? Object.assign({}, d, {file:l.fid, fileName:l.name, size:l.size, url:'', desc: d.desc || l.desc}) : d) : C.docs.concat([doc]);
+        saveDocs(next, st);
+      });
+    } else {
+      $('nitroIn').addEventListener('click', () => { nitroForm = !nitroForm; $('nitroForm').hidden = !nitroForm; if (nitroForm) $('nitroCode').focus(); });
+      $('nitroForm').addEventListener('submit', async (e) => {
+        e.preventDefault(); const err = $('nitroErr'); err.textContent = 'Checking…';
+        try { await nitroSignIn($('nitroCode').value); nitroForm = false; renderDocs(); }
+        catch(x){ err.textContent = x.message; }
+      });
+    }
     draw(); drawUploads();
   }
+  // Re-enter Nitro team view automatically if this tab already signed in.
+  async function restoreNitro(){ if (!nitroCode) return; try { await nitroSignIn(nitroCode); renderDocs(); } catch(e){} }
 
   function renderBrief(){
     const d = C.dates, P = phasesContent(), heardN = (C.heard || []).length;
@@ -818,6 +920,7 @@ details p{margin:0 0 20px;font-family:var(--body);font-size:16px;line-height:1.6
     $('foot').textContent = '© ' + new Date().getFullYear() + ' Nitro Software. Confidential — prepared exclusively for ' + C.account + '.';
     $('fDue').value = C.dates.pilotStart;
     renderProposal(); renderTeam(); renderDocs(); renderBrief(); renderPlanInfo(); syncFilterUI();
+    restoreNitro();
     setSync(true, 'Live · changes save for everyone'); apply(d);
     route();
   })();
